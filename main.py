@@ -1,11 +1,9 @@
 import math
-import os
 from statistics import stdev
 import seaborn as sns
-import numpy
-import numpy as np    # do odczytu z pliku
-import pandas as pd   # do analiz
-import random as rn   # do randomowych liczb
+import numpy as np
+import pandas as pd
+import random as rn
 from numpy import mean
 import matplotlib.pyplot as plt
 
@@ -19,27 +17,18 @@ class DataProcessing:
             j = rn.randint(0, i-1)
             x.iloc[i], x.iloc[j] = x.iloc[j], x.iloc[i]
 
-    #metoda do przeskalowania wszytkich dancyh w kolumnie na mnijsze ( mamy na to wzor xprim = x-min/max-min
+
     @staticmethod
     def normalizeData(x):
-        # metoda pozwala nam wykluczyc jakas kolumne
-        # object to obiekt czyli string bo string w pythonie to object
-        values = x.select_dtypes(
-            exclude="object")  # w skrocie to wyrzuca z bazy nienumeryczne dane np string, bo by sie nie dalo zrobic obliczen
-        values = values
+        values = x.select_dtypes(exclude="object")
         columnNames = values.columns.tolist()
         for column in columnNames:
-            data = x.loc[:,
-                   column]  # to prawdopodobnie bierze wszystkie wartosci z danej kolumny i pozniej bierze min i max wartosc z niej
-            # srednia danego atrybutu
+            data = x[column]
             min1 = min(data)
             max1 = max(data)
-
-            for row in range(len(x)):
-                # wzór na normalizacje
-                xprim = (x.at[row, column] - min1) / (max1 - min1)
-
-                x.at[row, column] = xprim  # tu podmiana wartsci oryginalnej na przeskalowaną
+            if max1 - min1 == 0:
+                continue  # Skip normalization if the range is zero
+            x[column] = (data - min1) / (max1 - min1)
 
 
 
@@ -53,6 +42,27 @@ class DataProcessing:
         testing = data.iloc[split_index:]
         return training, testing
 
+    def cleanColumn(data, columns, thr=2):
+        column_desc = data[columns].describe()
+
+        q3 = column_desc[6]
+        q1 = column_desc[4]
+        IQR = q3 - q1
+
+        top_limit_clm = q3 + thr * IQR
+        bottom_limit_clm = q1 - thr * IQR
+
+        filter_clm_bottom = bottom_limit_clm < data[columns]
+        filter_clm_top = data[columns] < top_limit_clm
+
+        filters = filter_clm_bottom & filter_clm_top
+
+        data = data[filters]
+
+        print("{} rows left after cleaning column : {}".format(len(data), columns))
+
+        return data
+
 
 
 
@@ -63,7 +73,7 @@ class NaiveBayes:
     def classify(x, sample):
         probability = []
         classNames = x['Outcome'].unique().tolist()
-        columnNames = x.columns.tolist()[:8]
+        columnNames = x.columns.tolist()[:7]
 
         for className in classNames:
             prob = 1
@@ -75,15 +85,28 @@ class NaiveBayes:
                 sigma = stdev(data)
 
                 if columnName == "Glucose":
-                    prob *= 2 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
-                if columnName == "BMI":
-                    prob *= 1.5 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
-                if columnName == "DiabetesPedigreeFunction":
-                    prob *= 1.5 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
-                if columnName == "Pregnancies":
-                    prob *= 0.8 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                    prob *= 0.47 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "BMI":
+                    prob *= 0.29 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "Age":
+                    prob *= 0.24 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "Pregnancies":
+                    prob *= 0.22 / (sigma * math.sqrt(np.pi * 2)) * np.exp(
+                        -0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "DiabetesPedigreeFunction":
+                    prob *= 0.17 / (sigma * math.sqrt(np.pi * 2)) * np.exp(
+                        -0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "Insulin":
+                    prob *= 0.13 / (sigma * math.sqrt(np.pi * 2)) * np.exp(
+                        -0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "SkinThickness":
+                    prob *= 0.075 / (sigma * math.sqrt(np.pi * 2)) * np.exp(
+                        -0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                elif columnName == "BloodPressure":
+                    prob *= 0.065 / (sigma * math.sqrt(np.pi * 2)) * np.exp(
+                        -0.5 * ((sample[columnName] - mu) / sigma) ** 2)
                 else:
-                    prob *= 1 / (sigma * math.sqrt(np.pi * 2)) * np.exp(-0.5 * ((sample[columnName] - mu) / sigma) ** 2)
+                    raise Exception("Wrong column name " + columnName)
 
             prob *= len(tmp) / len(x)
             probability.append([className, prob])
@@ -100,13 +123,15 @@ diabetesData = pd.read_csv(r'C:\Users\domin\Desktop\diabetes.csv')
 
 
 
-
-
-
 # sns.pairplot(diabetesData, hue="Outcome",height=8, aspect=1.2)
 # plt.subplots_adjust(bottom=0.10, left=0.08)
 # sns.set(font_scale=0.2)
 # plt.show()
+
+# czysczenie
+print("number of rows after clearing each column :")
+for column in diabetesData.columns:
+    diabetesData = DataProcessing.cleanColumn(diabetesData, column)
 
 
 # shuffle
@@ -119,7 +144,7 @@ print(diabetesData.head(5))
 
 
 # # split
-percentage = 0.6
+percentage = 0.7
 train, test = DataProcessing.splitData(diabetesData, percentage)
 print("length of data :")
 print(len(diabetesData))
@@ -134,7 +159,7 @@ print(len(test))
 # znormalizowanie i podzielenie na treningowa testowa
 DataProcessing.normalizeData(diabetesData)
 print("length of normalized data :" + str(len(diabetesData)))
-normTrain, normTest = DataProcessing.splitData(diabetesData, 0.6)
+normTrain, normTest = DataProcessing.splitData(diabetesData, 0.7)
 
 print("normalized training data :")
 print(normTrain.head(5))
@@ -153,10 +178,13 @@ def analize(tr, tst):
 
 
     dokladnosc = float(counter) / len(tst) * 100
-    print(dokladnosc, "%")
+    return dokladnosc
 
-print("nieznormalizowana :")
-analize(train, test)
+# print("nieznormalizowana :")
+# analize(train, test)
 
-print("znormalizowana :")
-analize(normTrain, normTest)
+
+print("outcome of normalized data :" + str(analize(normTrain, normTest)) + "%")
+
+
+
